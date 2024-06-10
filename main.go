@@ -99,7 +99,7 @@ func getShortHash(branch string) (string, error) {
 	if err != nil {
 		return "", errors.WithMessage(err, out)
 	}
-	return out, nil
+	return strings.Trim(out, "\n\t "), nil
 }
 
 type jobParams map[string]string
