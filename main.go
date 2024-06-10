@@ -20,11 +20,12 @@ import (
 func main() {
 	fs := flag.NewFlagSet("search", flag.ContinueOnError)
 	var (
-		flagJenkinsBase = fs.String("jenkins-base", "https://jenkins.general.mzg.bestbytes.net", "jenkins server base")
+		flagJenkinsBase = fs.String("jenkins-base", "https://jenkins.example.net", "jenkins server base")
 		flagUsername    = fs.String("jenkins-user", "", "jenkins username")
 		flagPassword    = fs.String("jenkins-pass", "", "jenkins password")
-		flagJob         = fs.String("jenkins-job", "websop-pipeline-kubernetes-single", "jenkins job")
+		flagJob         = fs.String("jenkins-job", "test-pipeline", "jenkins job")
 		flagJobParams   = fs.String("job-params", "jerkins.yaml", "yaml file with jenkins job params")
+		flagDebug       = fs.Bool("debug", false, "set logging to debug")
 	)
 	err := godotenv.Load()
 	if err != nil {
@@ -33,53 +34,61 @@ func main() {
 	if err := ff.Parse(fs, os.Args[1:], ff.WithEnvVars()); err != nil {
 		panic(err)
 	}
-
-	slog.SetLogLoggerLevel(slog.LevelDebug)
+	if *flagDebug {
+		slog.SetLogLoggerLevel(slog.LevelDebug)
+	}
 	ctx := context.Background()
-	jc := gojenkins.CreateJenkins(nil, *flagJenkinsBase, *flagUsername, *flagPassword)
-	if _, err := jc.Init(ctx); err != nil {
+	if err := run(ctx, *flagJenkinsBase, *flagUsername, *flagPassword, *flagJob, *flagJobParams); err != nil {
 		panic(err)
 	}
+}
+
+func run(ctx context.Context, base, user, pass, job, jobParamsPath string) error {
+	jc := gojenkins.CreateJenkins(nil, base, user, pass)
+	if _, err := jc.Init(ctx); err != nil {
+		return err
+	}
 	// load job params
-	f, err := os.Open(*flagJobParams)
+	f, err := os.Open(jobParamsPath)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer f.Close()
 	params := make(jobParams)
 	if err := yaml.NewDecoder(f).Decode(&params); err != nil {
-		panic(err)
+		return err
 	}
 	if err := params.fillInValues(); err != nil {
-		panic(err)
+		return err
 	}
 	uncommitedNum, err := getUncommitedChanges()
 	if err != nil {
-		panic(err)
+		return err
 	}
 	if uncommitedNum > 0 {
 		branch, _ := getCurrentBranch()
 		slog.Warn("you have uncommited changes on your current branch", "branch", branch, "len", uncommitedNum)
 	}
-	queueId, err := jc.BuildJob(ctx, *flagJob, params)
+	queueId, err := jc.BuildJob(ctx, job, params)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	build, err := jc.GetBuildFromQueueID(ctx, queueId)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	slog.Debug("build started", "job", *flagJob)
+	slog.Info("build started", "job", job)
 	// Wait for build to finish
 	for build.IsRunning(ctx) {
-		slog.Debug("building")
-		time.Sleep(5000 * time.Millisecond)
+		slog.Debug("still building")
+		time.Sleep(3000 * time.Millisecond)
 		build.Poll(ctx)
 	}
 	slog.Info("build done", "result", build.GetResult())
 	if build.GetResult() == "FAILURE" {
-		slog.Info("logs", "link", fmt.Sprintf("%v/job/%v/%v/console", *flagJenkinsBase, *flagJob, build.GetBuildNumber()))
+		slog.Info("logs", "link", fmt.Sprintf("%v/job/%v/%v/console", base, job, build.GetBuildNumber()))
 	}
+	return nil
 }
 
 func getCurrentBranch() (string, error) {
