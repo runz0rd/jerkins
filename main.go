@@ -20,11 +20,11 @@ import (
 func main() {
 	fs := flag.NewFlagSet("search", flag.ContinueOnError)
 	var (
-		flagJenkinsBase = fs.String("base", "https://jenkins.general.mzg.bestbytes.net", "jenkins server base")
+		flagJenkinsBase = fs.String("jenkins-base", "https://jenkins.general.mzg.bestbytes.net", "jenkins server base")
 		flagUsername    = fs.String("jenkins-user", "", "jenkins username")
 		flagPassword    = fs.String("jenkins-pass", "", "jenkins password")
-		flagJob         = fs.String("job", "websop-pipeline-kubernetes-single", "jenkins job")
-		flagJobParams   = fs.String("params", "jerkins.yaml", "yaml file with jenkins job params")
+		flagJob         = fs.String("jenkins-job", "websop-pipeline-kubernetes-single", "jenkins job")
+		flagJobParams   = fs.String("job-params", "jerkins.yaml", "yaml file with jenkins job params")
 	)
 	err := godotenv.Load()
 	if err != nil {
